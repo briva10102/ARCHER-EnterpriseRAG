@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# React
+frontend/node_modules/
+
+# Environment variables
+.env
+
+# ChromaDB
+chroma_db/
+
+# Uploaded PDFs
+Uploads/
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
