@@ -1,11 +1,11 @@
+import os
 import psycopg2
+from dotenv import load_dotenv
+
+load_dotenv()
 
 conn = psycopg2.connect(
-    host="localhost",
-    database="solar_db",
-    user="postgres",
-    password="Briva@789"
+    os.getenv("DATABASE_URL")
 )
 
 cursor = conn.cursor()
-
