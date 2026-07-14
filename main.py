@@ -23,6 +23,11 @@ load_dotenv()
 client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY"))
 
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+chroma_client = chromadb.PersistentClient(path="chroma_db")
+collection = chroma_client.get_or_create_collection(name="solar_manuals")
+
 SECRET_KEY = "mysecretkey123"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -290,13 +295,14 @@ def upload_file(file: UploadFile = File(...)):
 def extract_text():
     
     
-    client = chromadb.PersistentClient(path="chroma_db")
+    global collection
+    
     try:
-        client.delete_collection("solar_manuals")
+        chroma_client.delete_collection("solar_manuals")
     except:
         pass
 
-    collection = client.get_or_create_collection(name="solar_manuals")
+    collection = chroma_client.get_or_create_collection(name="solar_manuals")
     
     pdf_files = os.listdir("Uploads")
     for pdf in pdf_files:
@@ -316,12 +322,12 @@ def extract_text():
             for i in range(0, len(text), chunk_size):
                 chunks.append(text[i:i + chunk_size])
             
-            model = SentenceTransformer("all-MiniLM-L6-v2")
+            
             embeddings = []
             
             
             for chunk in chunks:
-                embeddings.append(model.encode(chunk))
+                embeddings.append(embedding_model.encode(chunk))
             
             for i in range(len(chunks)):
                 collection.add(
@@ -339,13 +345,8 @@ def extract_text():
 @app.post("/search")
 def search(request: SearchRequest):
 
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-
-    question_embedding = model.encode(request.question)
-
-    chroma_client = chromadb.PersistentClient(path="chroma_db")
-
-    collection = chroma_client.get_collection(name="solar_manuals")
+    question_embedding = embedding_model.encode(request.question)
+    
 
     results = collection.query(
         query_embeddings=[question_embedding.tolist()],
