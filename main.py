@@ -15,8 +15,13 @@ import chromadb
 from google import genai
 import os
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
-client = genai.Client(api_key="YOUR_GEMINI_API_KEY")
+
+
+load_dotenv()
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY"))
 
 SECRET_KEY = "mysecretkey123"
 ALGORITHM = "HS256"
