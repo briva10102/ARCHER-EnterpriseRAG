@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from database import conn, cursor
 from passlib.context import CryptContext
-from jose import jwt
+from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Depends
@@ -16,6 +16,7 @@ from google import genai
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from psycopg2.errors import UniqueViolation
 
 
 
@@ -85,24 +86,39 @@ class SearchRequest(BaseModel):
 
 @app.post("/register")
 def register(user: User):
-    
+
+    user.username = user.username.strip().lower()
+
     hashed_password = pwd_context.hash(user.password)
-    
-    cursor.execute(
-    """
-    INSERT INTO users (username, password, role)
-    VALUES (%s, %s, %s)
-    """,
-    (user.username, hashed_password, user.role)
-    )
 
-    conn.commit()
+    try:
+        cursor.execute(
+        """
+        INSERT INTO users (username, password, role)
+        VALUES (%s, %s, %s)
+        """,
+        (user.username, hashed_password, user.role)
+        )
 
-    return {"message": "User registered successfully"}
+        conn.commit()
+
+        return {"message": "User registered successfully"}
+
+    except UniqueViolation:
+
+        conn.rollback()
+
+        raise HTTPException(
+            status_code=400,
+            detail="Username already exists."
+        )
 
 
 @app.post("/login")
 def login(user: Login):
+    
+    user.username = user.username.strip().lower()
+    
     cursor.execute(
     """
     SELECT * FROM users
@@ -130,9 +146,15 @@ def login(user: Login):
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
 
-    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
 
-    return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token."
+        )
 
 def verify_admin(payload=Depends(verify_token)):
     if payload["role"] != "admin":
@@ -282,6 +304,13 @@ def get_product(id: int):
 
 @app.post("/upload")
 def upload_file(file: UploadFile = File(...)):
+    
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are supported."
+        )
+    
 
     with open(f"Uploads/{file.filename}", "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
