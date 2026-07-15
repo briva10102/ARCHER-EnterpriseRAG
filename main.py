@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Depends
 from fastapi import HTTPException
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, Form
 import shutil
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
@@ -303,7 +303,13 @@ def get_product(id: int):
 
 
 @app.post("/upload")
-def upload_file(file: UploadFile = File(...)):
+def upload_file(
+    file: UploadFile = File(...),
+    category: str = Form(...),
+    allowed_roles: str = Form(...)
+    ):
+    
+    category = category.strip()
     
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
@@ -314,13 +320,67 @@ def upload_file(file: UploadFile = File(...)):
 
     with open(f"Uploads/{file.filename}", "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
+        
+    cursor.execute(
+    """
+        INSERT INTO documents (filename, category)
+        VALUES (%s, %s)
+        RETURNING id
+        """,
+        (file.filename, category)
+    )
+
+    document_id = cursor.fetchone()[0]
+    roles = [role.strip().lower() for role in allowed_roles.split(",")]
+    for role in roles:
+        cursor.execute(
+            """
+            INSERT INTO document_permissions (document_id, role)
+            VALUES (%s, %s)
+            """,
+            (document_id, role)
+        )
+    
+
+    conn.commit()
+    reader = PdfReader(f"Uploads/{file.filename}")
+
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+        
+    chunk_size = 500
+
+    chunks = []
+
+    for i in range(0, len(text), chunk_size):
+        chunks.append(text[i:i + chunk_size])
+        
+    embeddings = []
+
+    for chunk in chunks:
+        embeddings.append(embedding_model.encode(chunk))
+        
+    for i in range(len(chunks)):
+        collection.add(
+            ids=[f"{file.filename}_{i}"],
+            documents=[chunks[i]],
+            embeddings=[embeddings[i].tolist()],
+            metadatas=[
+                {
+                    "document_id": document_id,
+                        "source": file.filename,
+                "category": category
+                }
+            ]
+        )
 
     return {
         "message": "File uploaded successfully"
     }
     
 
-@app.get("/extract")
+@app.get("/extract-old")
 def extract_text():
     
     
@@ -335,7 +395,25 @@ def extract_text():
     
     pdf_files = os.listdir("Uploads")
     for pdf in pdf_files:
+        
+        cursor.execute(
+            """
+            SELECT id, category
+            FROM documents
+            WHERE filename = %s
+            """,
+            (pdf,)
+        )
 
+        document = cursor.fetchone()
+
+        if document is None:
+            continue
+
+        document_id = document[0]
+        category = document[1]
+        
+        
         reader = PdfReader(f"Uploads/{pdf}")
 
         text = ""
@@ -344,27 +422,33 @@ def extract_text():
             text += page.extract_text()
         
 
-            chunk_size = 500
+        chunk_size = 500
 
-            chunks = []
+        chunks = []
 
-            for i in range(0, len(text), chunk_size):
-                chunks.append(text[i:i + chunk_size])
+        for i in range(0, len(text), chunk_size):
+            chunks.append(text[i:i + chunk_size])
             
             
-            embeddings = []
+        embeddings = []
             
             
-            for chunk in chunks:
-                embeddings.append(embedding_model.encode(chunk))
+        for chunk in chunks:
+            embeddings.append(embedding_model.encode(chunk))
             
-            for i in range(len(chunks)):
-                collection.add(
-                    ids=[f"{pdf}_{i}"],
-                    documents=[chunks[i]],
-                    embeddings=[embeddings[i].tolist()],
-                    metadatas=[{"source": pdf}]
-                )
+        for i in range(len(chunks)):
+            collection.add(
+                ids=[f"{pdf}_{i}"],
+                documents=[chunks[i]],
+                embeddings=[embeddings[i].tolist()],
+                metadatas=[
+                    {
+                        "document_id": document_id,
+                        "source": pdf,
+                        "category": category
+                    }
+                ]
+            )
     
     return {
     "count": collection.count()
@@ -372,14 +456,41 @@ def extract_text():
 
 
 @app.post("/search")
-def search(request: SearchRequest):
+def search(
+    request: SearchRequest,
+    payload=Depends(verify_token)
+):
+    role = payload["role"]
+    
+    cursor.execute(
+        """
+        SELECT document_id
+        FROM document_permissions
+        WHERE role = %s
+        """,
+        (role,)
+    )
 
+    allowed_documents = cursor.fetchall()
+    allowed_documents = [doc[0] for doc in allowed_documents]
+    
+    
     question_embedding = embedding_model.encode(request.question)
     
-
+    if not allowed_documents:
+        return {
+            "answer": "I couldn't find any information you're authorized to access.",
+            "sources": []
+        }
+    
     results = collection.query(
         query_embeddings=[question_embedding.tolist()],
-        n_results=3
+        n_results=3,
+        where={
+            "document_id": {
+                "$in": allowed_documents
+            }
+        }
     )
 
     context = "\n\n".join(results["documents"][0])
