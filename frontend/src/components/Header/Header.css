@@ -1,0 +1,223 @@
+.archer-header {
+
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+
+    height: 82px;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    padding: 0 42px;
+
+    background: rgba(255, 255, 255, .78);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+
+    border-bottom: 1px solid rgba(0, 0, 0, .05);
+
+    z-index: 1000;
+
+}
+
+.header-left {
+
+    display: flex;
+    align-items: center;
+
+    flex: 1;
+
+}
+
+.brand {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 4px;
+
+    width: 100%;
+
+}
+
+.brand-line {
+
+    display: flex;
+    align-items: center;
+
+    width: 100%;
+
+    gap: 18px;
+
+}
+.brand h1 {
+
+    margin: 0;
+
+    font-size: 38px;
+    
+        font-weight: 800;
+    
+        letter-spacing: -0.04em;
+
+    line-height: 1;
+
+}
+
+
+
+.line {
+
+    position: relative;
+
+    flex: 1;
+
+    height: 2px;
+
+    background: rgba(0, 0, 0, .08);
+
+    border-radius: 999px;
+
+    overflow: hidden;
+
+}
+.line::after {
+
+    content: "";
+
+    position: absolute;
+
+    left: -90px;
+
+    top: 50%;
+
+    width: 90px;
+
+    height: 2px;
+
+    transform: translateY(-50%);
+
+    background:
+        linear-gradient(90deg,
+            transparent,
+            #C8A951,
+            #F7E18A);
+
+    animation: arrowMove 3s linear infinite;
+
+}
+.line::before {
+
+    content: "";
+
+    position: absolute;
+
+    right: 0;
+
+    top: 50%;
+
+    width: 8px;
+
+    height: 8px;
+
+    border-top: 2px solid rgba(0, 0, 0, .45);
+
+    border-right: 2px solid rgba(0, 0, 0, .45);
+
+    transform:
+        translateY(-50%) rotate(45deg);
+
+}
+
+@keyframes arrowMove {
+
+    from {
+
+        left: -90px;
+
+    }
+
+    to {
+
+        left: 100%;
+
+    }
+
+}
+
+.tagline {
+
+    margin-top: 8px;
+
+    font-size: 12px;
+
+    font-weight: 600;
+
+    letter-spacing: .22em;
+
+    color: #8A8A8A;
+
+}
+.header-right {
+
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+
+    gap: 14px;
+
+    flex: 1;
+
+}
+
+.header-btn {
+
+    height: 46px;
+
+    padding: 0 18px;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    border: none;
+
+    border-radius: 14px;
+
+    background: white;
+
+    font-size: 14px;
+
+    font-weight: 600;
+
+    color: #111;
+
+    cursor: pointer;
+
+    transition: .25s;
+
+    box-shadow:
+        0 6px 18px rgba(0, 0, 0, .05);
+
+}
+
+.header-btn:hover {
+
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 12px 30px rgba(0, 0, 0, .08);
+
+}
+
+.header-btn svg {
+
+    font-size: 18px;
+
+}

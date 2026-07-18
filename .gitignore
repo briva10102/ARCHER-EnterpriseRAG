@@ -2,18 +2,28 @@
 venv/
 __pycache__/
 *.pyc
-
-# React
-frontend/node_modules/
+*.pyo
 
 # Environment variables
 .env
+.env.*
+
+# React
+frontend/node_modules/
+frontend/dist/
+
+# Python build/cache
+.pytest_cache/
+.mypy_cache/
 
 # ChromaDB
 chroma_db/
+backend/chroma_db/
 
 # Uploaded PDFs
 Uploads/
+backend/Uploads/
+backend/uploads/
 
 # VS Code
 .vscode/

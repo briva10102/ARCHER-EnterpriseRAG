@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from database import conn, cursor
+from database import get_connection
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
@@ -90,8 +90,10 @@ def register(user: User):
     user.username = user.username.strip().lower()
 
     hashed_password = pwd_context.hash(user.password)
-
+    conn = get_connection()
+    cursor = conn.cursor()
     try:
+        
         cursor.execute(
         """
         INSERT INTO users (username, password, role)
@@ -101,13 +103,15 @@ def register(user: User):
         )
 
         conn.commit()
-
+        cursor.close()
+        conn.close()
         return {"message": "User registered successfully"}
 
     except UniqueViolation:
 
         conn.rollback()
-
+        cursor.close()
+        conn.close()
         raise HTTPException(
             status_code=400,
             detail="Username already exists."
@@ -118,7 +122,8 @@ def register(user: User):
 def login(user: Login):
     
     user.username = user.username.strip().lower()
-    
+    conn = get_connection()
+    cursor = conn.cursor()
     cursor.execute(
     """
     SELECT * FROM users
@@ -138,6 +143,9 @@ def login(user: Login):
     "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    cursor.close()
+    conn.close()
+    
     return {
     "access_token": token,
     "token_type": "bearer"
@@ -168,7 +176,8 @@ def verify_admin(payload=Depends(verify_token)):
 
 @app.get("/profile")
 def profile(payload=Depends(verify_token)):
-
+    conn = get_connection()
+    cursor = conn.cursor()
     cursor.execute(
         """
         SELECT id, username
@@ -179,7 +188,8 @@ def profile(payload=Depends(verify_token)):
     )
 
     user = cursor.fetchone()
-
+    cursor.close()
+    conn.close()
     return {
         "id": user[0],
         "username": user[1]
@@ -191,7 +201,8 @@ def delete_product(
     payload=Depends(verify_admin)
 ):
 
-    
+    conn = get_connection()
+    cursor = conn.cursor()
     cursor.execute(
         """
         DELETE FROM products
@@ -201,6 +212,8 @@ def delete_product(
     )
 
     conn.commit()
+    cursor.close()
+    conn.close()
 
     return {
         "message": "Product deleted"
@@ -214,7 +227,8 @@ def update_product(
     payload=Depends(verify_admin)
 ):
 
-    
+    conn = get_connection()
+    cursor = conn.cursor()
     cursor.execute(
         """
         UPDATE products
@@ -226,7 +240,8 @@ def update_product(
     )
 
     conn.commit()
-
+    cursor.close()
+    conn.close()
     return {
         "message": f"Product {p.name} updated"
     }
@@ -237,6 +252,10 @@ def create_product(
     p: Product,
     payload=Depends(verify_admin)
 ):
+    
+    
+    conn = get_connection()
+    cursor = conn.cursor()
     cursor.execute(
     """
     SELECT id
@@ -257,7 +276,8 @@ def create_product(
     )
 
     conn.commit()
-
+    cursor.close()
+    conn.close()
     return {
         "message": f"Product {p.name} added"
     }
@@ -265,6 +285,8 @@ def create_product(
 @app.get("/products")
 def get_products(payload=Depends(verify_token)):
 
+    conn = get_connection()
+    cursor = conn.cursor()
     cursor.execute(
     """
     SELECT id
@@ -286,16 +308,21 @@ def get_products(payload=Depends(verify_token)):
     )
 
     data = cursor.fetchall()
-
+    cursor.close()
+    conn.close()
     return {
         "products": data
     }
 
 @app.get("/products/{id}")
 def get_product(id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
     cursor.execute("SELECT * FROM products WHERE id = %s", (id,))
 
     data = cursor.fetchone()
+    cursor.close()
+    conn.close()
 
     return {
         "product": data
@@ -309,6 +336,9 @@ def upload_file(
     allowed_roles: str = Form(...)
     ):
     
+    
+    conn = get_connection()
+    cursor = conn.cursor()
     category = category.strip()
     
     if not file.filename.lower().endswith(".pdf"):
@@ -356,7 +386,7 @@ def upload_file(
     for i in range(0, len(text), chunk_size):
         chunks.append(text[i:i + chunk_size])
         
-    embeddings = []
+    embeddings = [] 
 
     for chunk in chunks:
         embeddings.append(embedding_model.encode(chunk))
@@ -374,7 +404,9 @@ def upload_file(
                 }
             ]
         )
-
+    cursor.close()
+    conn.close()
+    
     return {
         "message": "File uploaded successfully"
     }
@@ -392,7 +424,8 @@ def extract_text():
         pass
 
     collection = chroma_client.get_or_create_collection(name="solar_manuals")
-    
+    conn = get_connection()
+    cursor = conn.cursor()
     pdf_files = os.listdir("Uploads")
     for pdf in pdf_files:
         
@@ -449,7 +482,8 @@ def extract_text():
                     }
                 ]
             )
-    
+    cursor.close()
+    conn.close()
     return {
     "count": collection.count()
     }
@@ -462,6 +496,8 @@ def search(
 ):
     role = payload["role"]
     
+    conn = get_connection()
+    cursor = conn.cursor()
     cursor.execute(
         """
         SELECT document_id
@@ -478,6 +514,8 @@ def search(
     question_embedding = embedding_model.encode(request.question)
     
     if not allowed_documents:
+        cursor.close()
+        conn.close()
         return {
             "answer": "I couldn't find any information you're authorized to access.",
             "sources": []
@@ -528,6 +566,8 @@ def search(
     if len(conversation_history) > 10:
         conversation_history.pop(0)
         conversation_history.pop(0)
+    cursor.close()
+    conn.close()
     
     return {
     "answer": response.text,
