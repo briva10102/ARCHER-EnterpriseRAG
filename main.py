@@ -349,7 +349,7 @@ def upload_file(
             detail="Only PDF files are supported."
         )
     
-
+    os.makedirs("Uploads", exist_ok=True)
     with open(f"Uploads/{file.filename}", "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
